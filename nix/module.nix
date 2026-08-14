@@ -75,7 +75,7 @@ in
         Type = "oneshot";
         ExecStart = [
           "${pkgs.python3}/bin/python3 ${client} --once"
-        ] + lib.optional (config.services.device-tracker.deviceId != "") [
+        ] ++ lib.optionals (config.services.device-tracker.deviceId != "") [
           "--id ${config.services.device-tracker.deviceId}"
         ];
         Environment = [
