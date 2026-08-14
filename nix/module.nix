@@ -58,6 +58,11 @@ in
       };
     };
 
+    # geoclue is DBus-activated and can sit inactive (loaded but never
+    # started) — the tracker then gets no location. Force it to start at
+    # boot so the client always has a location service to call.
+    systemd.services.geoclue.wantedBy = [ "multi-user.target" ];
+
     systemd.services.tracker-checkin = {
       description = "device-tracker periodic checkin";
       wantedBy = [ "timers.target" ];
