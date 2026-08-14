@@ -136,14 +136,15 @@ def battery():
 
 
 def location():
-    """Best-effort location. Laptops (FW12/P14s) have no GPS chip, so we use
-    GeoClue2 (WiFi/network positioning via geoclue, the standard Linux
-    service) when available; otherwise return nothing and let the server
-    fall back to IP-based geo.
+    """Report real location from GeoClue2 (WiFi/network positioning — no GPS
+    chip on FW12/P14s). Returns None if unavailable; the SERVER then applies
+    its own IP-geo / home-pinning. We deliberately do NOT do client-side IP
+    fallback here, because IP-geo often resolves to a far-away ISP tower
+    (e.g. Hornslet for a Holbæk device) and would override the server's
+    home-pin.
 
-    Returns dict with lat/lon (+ accuracy) or None.
+    Returns dict with lat/lon (+ source) or None.
     """
-    # 1) GeoClue2 via gdbus (stdlib-friendly subprocess call).
     gdbus = _run(["sh", "-c",
         'gdbus call --session --dest org.freedesktop.GeoClue2 '
         '--object-path /org/freedesktop/GeoClue2/Client '
@@ -156,25 +157,12 @@ def location():
         '--method org.freedesktop.DBus.Properties.GetAll '
         'org.freedesktop.GeoClue2.Location 2>/dev/null'])
     if gdbus:
-        # Parse the dbus dict for lat/lon keys.
         import re
         m = re.search(r"\x27latitude\x27:\s*\((\d+\.?\d*)", gdbus)
         lo = re.search(r"\x27longitude\x27:\s*\((\d+\.?\d*)", gdbus)
         if m and lo:
             return {"lat": float(m.group(1)), "lon": float(lo.group(1)),
                     "source": "geoclue"}
-
-    # 2) Fallback: try a simple IP-based lookup client-side (best-effort).
-    try:
-        req = urllib.request.Request("http://ip-api.com/json",
-                                     headers={"User-Agent": "device-tracker"})
-        with urllib.request.urlopen(req, timeout=6) as resp:
-            d = json.loads(resp.read().decode())
-        if d.get("status") == "success":
-            return {"lat": d["lat"], "lon": d["lon"],
-                    "source": "ip", "city": d.get("city")}
-    except Exception:
-        pass
 
     return None
 
