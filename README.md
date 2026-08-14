@@ -8,6 +8,23 @@ The server (Flask dashboard + geo-IP map) runs on your homeserver and is
 reachable at `https://track.gooseysserver.eu`. The dashboard/GUI is LAN-only;
 the checkin endpoint is public so machines report in from anywhere.
 
+## Features
+
+- **Device tracking** — every machine reports hostname, IP, OS, CPU, memory, disk, battery, boot id every ~5 min.
+- **Location** — home-pin (Holbæk) when on the LAN, IP-geo when away, and optional GeoClue2 WiFi positioning.
+- **Set location from phone** — open `/mobile` on your phone (LAN), pick a device, share your GPS fix to pin it exactly (far more accurate than the laptop's WiFi/IP positioning).
+- **Frequent-areas report** — the dashboard's "Frequent areas" button clusters location history into the places you spend time (home, work, etc.).
+
+## Endpoints
+
+- `POST /api/checkin` — client reports in (public, token required).
+- `GET  /api/devices` — JSON list of devices + last state (LAN-only, token).
+- `POST /api/set-location` — phone GPS sets a device's location (LAN-only, token).
+- `GET  /api/frequent-areas` — clustered location history (LAN-only, token).
+- `GET  /mobile` — phone GPS page (LAN-only).
+- `GET  /` — dashboard (LAN-only).
+- `GET  /health` — healthcheck (public).
+
 ## Install on a NixOS machine (Framework 12, P14s, etc.)
 
 This is a **classic `configuration.nix`** setup — no flakes required.
