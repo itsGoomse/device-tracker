@@ -12,16 +12,18 @@ the checkin endpoint is public so machines report in from anywhere.
 
 - **Device tracking** — every machine reports hostname, IP, OS, CPU, memory, disk, battery, boot id every ~5 min.
 - **Location** — home-pin (Holbæk) when on the LAN, IP-geo when away, and optional GeoClue2 WiFi positioning.
-- **Set location from phone** — open `/mobile` on your phone (LAN), pick a device, share your GPS fix to pin it exactly (far more accurate than the laptop's WiFi/IP positioning).
+- **Set location from phone** — open `/mobile` on your phone (public, token required), pick a device, share your GPS fix to pin it exactly (far more accurate than the laptop's WiFi/IP positioning).
+- **SSID auto-matching** — when you set a location from your phone, optionally enter the WiFi name (SSID) you're on. The laptop then auto-matches its own SSID to that location, so it knows where it is whenever it joins that network — no manual pinning needed each time.
 - **Frequent-areas report** — the dashboard's "Frequent areas" button clusters location history into the places you spend time (home, work, etc.).
 
 ## Endpoints
 
 - `POST /api/checkin` — client reports in (public, token required).
 - `GET  /api/devices` — JSON list of devices + last state (LAN-only, token).
-- `POST /api/set-location` — phone GPS sets a device's location (LAN-only, token).
+- `GET  /api/device-ids` — public list of device IDs (token) — used by the mobile page.
+- `POST /api/set-location` — phone GPS sets a device's location + optional SSID mapping (public, token).
 - `GET  /api/frequent-areas` — clustered location history (LAN-only, token).
-- `GET  /mobile` — phone GPS page (LAN-only).
+- `GET  /mobile` — phone GPS page (public, token).
 - `GET  /` — dashboard (LAN-only).
 - `GET  /health` — healthcheck (public).
 
