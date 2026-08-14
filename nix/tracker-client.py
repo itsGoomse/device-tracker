@@ -143,27 +143,60 @@ def location():
     (e.g. Hornslet for a Holbæk device) and would override the server's
     home-pin.
 
+    GeoClue2 DBus flow (object paths are dynamic, not fixed):
+      Manager.GetClient -> client path
+      client.Start / client.GetLocation -> location path
+      location.GetAll(lat, lon)
+
     Returns dict with lat/lon (+ source) or None.
     """
-    gdbus = _run(["sh", "-c",
-        'gdbus call --system --dest org.freedesktop.GeoClue2 '
-        '--object-path /org/freedesktop/GeoClue2/Client '
-        '--method org.freedesktop.GeoClue2.Client.Start 2>/dev/null && '
-        'gdbus call --system --dest org.freedesktop.GeoClue2 '
-        '--object-path /org/freedesktop/GeoClue2/Client '
-        '--method org.freedesktop.GeoClue2.Client.GetLocation 2>/dev/null && '
-        'gdbus call --system --dest org.freedesktop.GeoClue2 '
-        '--object-path /org/freedesktop/GeoClue2/Location '
-        '--method org.freedesktop.DBus.Properties.GetAll '
-        'org.freedesktop.GeoClue2.Location 2>/dev/null'])
-    if gdbus:
-        import re
-        m = re.search(r"\x27latitude\x27:\s*\((\d+\.?\d*)", gdbus)
-        lo = re.search(r"\x27longitude\x27:\s*\((\d+\.?\d*)", gdbus)
-        if m and lo:
-            return {"lat": float(m.group(1)), "lon": float(lo.group(1)),
-                    "source": "geoclue"}
+    import re
+    GB = "gdbus call --system --dest org.freedesktop.GeoClue2"
+    try:
+        # 1) Get a client object (path is dynamic).
+        mgr = _run(["sh", "-c",
+            f'{GB} --object-path /org/freedesktop/GeoClue2/Manager '
+            '--method org.freedesktop.GeoClue2.Manager.GetClient 2>/dev/null'])
+        if not mgr:
+            return None
+        m = re.search(r"(/org/freedesktop/GeoClue2/Client/\d+)", mgr)
+        if not m:
+            return None
+        client_path = m.group(1)
 
+        # 2) Start the client (async location determination begins).
+        _run(["sh", "-c",
+            f'{GB} --object-path {client_path} '
+            '--method org.freedesktop.GeoClue2.Client.Start 2>/dev/null'])
+
+        # 3) Poll GetLocation a few times — a fix may take a second or two.
+        loc_path = None
+        for _ in range(5):
+            loc = _run(["sh", "-c",
+                f'{GB} --object-path {client_path} '
+                '--method org.freedesktop.GeoClue2.Client.GetLocation 2>/dev/null'])
+            lm = re.search(r"(/org/freedesktop/GeoClue2/Location/\d+)", loc or "")
+            if lm:
+                loc_path = lm.group(1)
+                break
+            time.sleep(1)
+        if not loc_path:
+            return None
+
+        # 4) Read lat/lon from the location object.
+        props = _run(["sh", "-c",
+            f'{GB} --object-path {loc_path} '
+            '--method org.freedesktop.DBus.Properties.GetAll '
+            'org.freedesktop.GeoClue2.Location 2>/dev/null'])
+        if not props:
+            return None
+        lat = re.search(r"'latitude':\s*<\(?\s*(-?\d+\.?\d*)", props)
+        lon = re.search(r"'longitude':\s*<\(?\s*(-?\d+\.?\d*)", props)
+        if lat and lon:
+            return {"lat": float(lat.group(1)), "lon": float(lon.group(1)),
+                    "source": "geoclue"}
+    except Exception:
+        pass
     return None
 
 
