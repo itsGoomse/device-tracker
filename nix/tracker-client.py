@@ -164,6 +164,15 @@ def location():
             return None
         client_path = m.group(1)
 
+        # Declare our desktop ID so GeoClue matches the whitelist entry
+        # (services.geoclue2.appConfig."com.gooseys.device-tracker").
+        # Without this, GeoClue can't identify a bare python process and
+        # refuses to authorize a location.
+        _run(["sh", "-c",
+            f'{GB} --object-path {client_path} '
+            '--method org.freedesktop.GeoClue2.Client.SetDesktopId '
+            'com.gooseys.device-tracker 2>/dev/null'])
+
         # 2) Start the client (async location determination begins).
         _run(["sh", "-c",
             f'{GB} --object-path {client_path} '
