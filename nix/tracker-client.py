@@ -171,24 +171,27 @@ def location():
         bus = dbus.SystemBus()
         mgr = bus.get_object(BUS, MGR, follow_name_owner_changes=True)
         mgr_iface = dbus.Interface(mgr, "org.freedesktop.GeoClue2.Manager")
-        client_path = mgr_iface.GetClient()
+        # geoclue can be slow to respond (it does a network lookup for the
+        # fix); the default 25s DBus reply timeout isn't always enough, so
+        # raise it to 40s.
+        client_path = mgr_iface.GetClient(timeout=40000)
 
         client = bus.get_object(BUS, client_path, follow_name_owner_changes=True)
         props = dbus.Interface(client, "org.freedesktop.DBus.Properties")
 
         # DesktopId is a property; geoclue matches it against the whitelist.
         try:
-            props.Set(IFACE_CLIENT, "DesktopId", DESKTOP_ID)
+            props.Set(IFACE_CLIENT, "DesktopId", DESKTOP_ID, timeout=40000)
         except dbus.DBusException as e:
             print(f"[tracker] location: SetDesktopId error: {e}", file=sys.stderr)
 
-        dbus.Interface(client, IFACE_CLIENT).Start()
+        dbus.Interface(client, IFACE_CLIENT).Start(timeout=40000)
 
         # Poll the Location property (object path when a fix exists).
         loc_path = None
         for _ in range(6):
             try:
-                p = props.Get(IFACE_CLIENT, "Location")
+                p = props.Get(IFACE_CLIENT, "Location", timeout=40000)
                 if p and str(p) != "/":
                     loc_path = p
                     break
@@ -201,7 +204,7 @@ def location():
 
         loc = bus.get_object(BUS, loc_path)
         lprops = dbus.Interface(loc, "org.freedesktop.DBus.Properties")
-        allp = lprops.GetAll(IFACE_LOC)
+        allp = lprops.GetAll(IFACE_LOC, timeout=40000)
         lat = float(allp.get("Latitude", 0))
         lon = float(allp.get("Longitude", 0))
         if lat == 0.0 and lon == 0.0:
