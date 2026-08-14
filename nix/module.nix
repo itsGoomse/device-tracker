@@ -46,19 +46,12 @@ in
       default = "";
       description = "Stable device ID. Defaults to hostname; set this to a unique per-machine value (e.g. p14s, fw12) so machines with the same hostname don't collide on the server.";
     };
-    user = lib.mkOption {
-      type = lib.types.str;
-      default = "inuk";
-      description = "System user the checkin service runs as. MUST be the logged-in desktop user so GeoClue's demo agent (a user service) can authorize the location request. Do NOT leave as root — root has no matching agent and geoclue refuses.";
-    };
   };
 
   config = lib.mkIf config.services.device-tracker.enable {
     # GeoClue2 provides location (WiFi/network positioning — no GPS chip
-    # needed on these laptops). The client reads it via gdbus on the SYSTEM
-    # bus. We whitelist the tracker app directly (appConfig) so no desktop
-    # portal/agent authorization is required — this is what makes it work
-    # on BOTH KDE Plasma and bare Hyprland (which has no portal agent).
+    # needed on these laptops). We whitelist the tracker app directly
+    # (appConfig) so no desktop portal/agent authorization is required.
     services.geoclue2 = {
       enable = true;
       appConfig."com.gooseys.device-tracker" = {
@@ -72,21 +65,20 @@ in
     # boot so the client always has a location service to call.
     systemd.services.geoclue.wantedBy = [ "multi-user.target" ];
 
-    systemd.services.tracker-checkin = {
+    # Run the checkin as a USER service (systemd --user), NOT a system
+    # service. The geoclue demo agent is a user service inside the desktop
+    # session; a system service (even with User=inuk) is outside that
+    # session bus, so the agent can't authorize the location request and
+    # geoclue returns no fix. A user service shares the session where the
+    # agent lives.
+    systemd.user.services.tracker-checkin = {
       description = "device-tracker periodic checkin";
-      wantedBy = [ "timers.target" ];
-      after = [ "network-online.target" ];
       wants = [ "network-online.target" ];
-      # trackerPython includes dbus-python so the client can hold a
-      # persistent D-Bus connection to GeoClue2 (the Client object dies if
-      # we use separate gdbus calls). glib.bin keeps gdbus on PATH.
+      after = [ "network-online.target" ];
       path = [ pkgs.glib.bin ];
       serviceConfig = {
         Type = "oneshot";
-        User = config.services.device-tracker.user;
-        # ONE string, so systemd parses it as a single command. If we split
-        # --id into its own list element, systemd tries to exec "-id" as a
-        # program ("Unable to locate executable '-id'").
+        # ONE string, so systemd parses it as a single command.
         ExecStart =
           "${trackerPython}/bin/python3 ${client} --once"
           + lib.optionalString (config.services.device-tracker.deviceId != "")
@@ -98,7 +90,7 @@ in
       };
     };
 
-    systemd.timers.tracker-checkin = {
+    systemd.user.timers.tracker-checkin = {
       description = "device-tracker checkin timer";
       wantedBy = [ "timers.target" ];
       timerConfig = {
