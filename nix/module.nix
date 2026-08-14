@@ -41,8 +41,17 @@ in
 
   config = lib.mkIf config.services.device-tracker.enable {
     # GeoClue2 provides location (WiFi/network positioning — no GPS chip
-    # needed on these laptops). The client reads it via gdbus.
-    services.geoclue2.enable = true;
+    # needed on these laptops). The client reads it via gdbus on the SYSTEM
+    # bus. We whitelist the tracker app directly (appConfig) so no desktop
+    # portal/agent authorization is required — this is what makes it work
+    # on BOTH KDE Plasma and bare Hyprland (which has no portal agent).
+    services.geoclue2 = {
+      enable = true;
+      appConfig."com.gooseys.device-tracker" = {
+        isAllowed = true;
+        isSystem = true;
+      };
+    };
 
     systemd.services.tracker-checkin = {
       description = "device-tracker periodic checkin";

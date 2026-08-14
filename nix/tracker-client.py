@@ -146,13 +146,13 @@ def location():
     Returns dict with lat/lon (+ source) or None.
     """
     gdbus = _run(["sh", "-c",
-        'gdbus call --session --dest org.freedesktop.GeoClue2 '
+        'gdbus call --system --dest org.freedesktop.GeoClue2 '
         '--object-path /org/freedesktop/GeoClue2/Client '
         '--method org.freedesktop.GeoClue2.Client.Start 2>/dev/null && '
-        'gdbus call --session --dest org.freedesktop.GeoClue2 '
+        'gdbus call --system --dest org.freedesktop.GeoClue2 '
         '--object-path /org/freedesktop/GeoClue2/Client '
         '--method org.freedesktop.GeoClue2.Client.GetLocation 2>/dev/null && '
-        'gdbus call --session --dest org.freedesktop.GeoClue2 '
+        'gdbus call --system --dest org.freedesktop.GeoClue2 '
         '--object-path /org/freedesktop/GeoClue2/Location '
         '--method org.freedesktop.DBus.Properties.GetAll '
         'org.freedesktop.GeoClue2.Location 2>/dev/null'])
