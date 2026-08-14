@@ -18,9 +18,10 @@
 let
   # Bake the client script into the derivation so the module is standalone.
   client = pkgs.writeScript "tracker-client.py" (builtins.readFile ./tracker-client.py);
-  # Python interpreter with dbus-python so the client can hold a persistent
-  # D-Bus connection to GeoClue2 (required for location).
-  trackerPython = pkgs.python3.withPackages (p: [ p.dbus-python ]);
+  # Python interpreter with dbus-python + pygobject3 so the client can hold a
+  # persistent D-Bus connection to GeoClue2 and run a GLib main loop
+  # (required for location).
+  trackerPython = pkgs.python3.withPackages (p: [ p.dbus-python p.pygobject3 ]);
 in
 {
   options.services.device-tracker = {

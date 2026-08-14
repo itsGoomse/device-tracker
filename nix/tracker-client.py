@@ -140,64 +140,68 @@ def location():
     chip on FW12/P14s). Returns None if unavailable; the SERVER then applies
     its own IP-geo / home-pinning.
 
-    GeoClue2's Client object is tied to the DBus connection that created it
-    and dies when that connection closes — so we must use ONE persistent
-    connection for the whole Manager -> Client -> Start -> GetLocation flow.
-    (The old gdbus one-shot calls kept losing the client object, which is why
-    location always came back None.)
+    GeoClue2 API notes (learned the hard way):
+      - The Client object is tied to the DBus connection that created it and
+        dies when that connection closes -> must use ONE persistent connection.
+      - DesktopId and Location are PROPERTIES, not methods. Set DesktopId via
+        Properties.Set, read Location via Properties.Get.
+      - GetClient is async -> needs a GLib main loop.
 
-    Requires python3Packages.dbus-python (added to the checkin service PATH).
+    Requires python3Packages.dbus-python + pygobject3 (added to the checkin
+    service's python env).
 
     Returns dict with lat/lon (+ source) or None.
     """
     try:
         import dbus
+        import dbus.mainloop.glib
+        from gi.repository import GLib
     except ImportError:
         return None
 
+    dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+    BUS = "org.freedesktop.GeoClue2"
+    MGR = "/org/freedesktop/GeoClue2/Manager"
+    IFACE_CLIENT = "org.freedesktop.GeoClue2.Client"
+    IFACE_LOC = "org.freedesktop.GeoClue2.Location"
+    DESKTOP_ID = "com.gooseys.device-tracker"
+
     try:
         bus = dbus.SystemBus()
-        mgr = bus.get_object(
-            "org.freedesktop.GeoClue2",
-            "/org/freedesktop/GeoClue2/Manager",
-            follow_name_owner_changes=True,
-        )
+        mgr = bus.get_object(BUS, MGR, follow_name_owner_changes=True)
         mgr_iface = dbus.Interface(mgr, "org.freedesktop.GeoClue2.Manager")
         client_path = mgr_iface.GetClient()
 
-        client = bus.get_object("org.freedesktop.GeoClue2", client_path,
-                                follow_name_owner_changes=True)
-        client_iface = dbus.Interface(client, "org.freedesktop.GeoClue2.Client")
+        client = bus.get_object(BUS, client_path, follow_name_owner_changes=True)
+        props = dbus.Interface(client, "org.freedesktop.DBus.Properties")
 
-        # Declare our desktop ID so GeoClue matches the whitelist entry
-        # (services.geoclue2.appConfig."com.gooseys.device-tracker").
+        # DesktopId is a property; geoclue matches it against the whitelist.
         try:
-            client_iface.SetDesktopId("com.gooseys.device-tracker")
+            props.Set(IFACE_CLIENT, "DesktopId", DESKTOP_ID)
         except dbus.DBusException:
             pass
 
-        client_iface.Start()
+        dbus.Interface(client, IFACE_CLIENT).Start()
 
-        # Poll for a location fix (async; may take a couple seconds).
+        # Poll the Location property (object path when a fix exists).
         loc_path = None
-        for _ in range(5):
+        for _ in range(6):
             try:
-                loc_path = client_iface.GetLocation()
+                p = props.Get(IFACE_CLIENT, "Location")
+                if p and str(p) != "/":
+                    loc_path = p
+                    break
             except dbus.DBusException:
-                loc_path = None
-            if loc_path:
-                break
+                pass
             time.sleep(1)
         if not loc_path:
             return None
 
-        loc = bus.get_object("org.freedesktop.GeoClue2", loc_path,
-                             follow_name_owner_changes=True)
-        props = dbus.Interface(loc, "org.freedesktop.DBus.Properties")
-        all_props = props.GetAll("org.freedesktop.GeoClue2.Location")
-
-        lat = float(all_props.get("Latitude"))
-        lon = float(all_props.get("Longitude"))
+        loc = bus.get_object(BUS, loc_path)
+        lprops = dbus.Interface(loc, "org.freedesktop.DBus.Properties")
+        allp = lprops.GetAll(IFACE_LOC)
+        lat = float(allp.get("Latitude", 0))
+        lon = float(allp.get("Longitude", 0))
         if lat == 0.0 and lon == 0.0:
             return None
         return {"lat": lat, "lon": lon, "source": "geoclue"}
