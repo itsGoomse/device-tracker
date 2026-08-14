@@ -42,6 +42,11 @@ in
       default = "";
       description = "Stable device ID. Defaults to hostname; set this to a unique per-machine value (e.g. p14s, fw12) so machines with the same hostname don't collide on the server.";
     };
+    user = lib.mkOption {
+      type = lib.types.str;
+      default = "inuk";
+      description = "System user the checkin service runs as. MUST be the logged-in desktop user so GeoClue's demo agent (a user service) can authorize the location request. Do NOT leave as root — root has no matching agent and geoclue refuses.";
+    };
   };
 
   config = lib.mkIf config.services.device-tracker.enable {
@@ -73,6 +78,7 @@ in
       path = [ pkgs.python3 pkgs.glib.bin ];
       serviceConfig = {
         Type = "oneshot";
+        User = config.services.device-tracker.user;
         ExecStart = [
           "${pkgs.python3}/bin/python3 ${client} --once"
         ] ++ lib.optionals (config.services.device-tracker.deviceId != "") [
