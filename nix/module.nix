@@ -49,7 +49,9 @@ in
       wantedBy = [ "timers.target" ];
       after = [ "network-online.target" ];
       wants = [ "network-online.target" ];
-      path = [ pkgs.python3 ];
+      # python3 runs the script; glib.bin provides gdbus (needed to talk to
+      # GeoClue2 for location).
+      path = [ pkgs.python3 pkgs.glib.bin ];
       serviceConfig = {
         Type = "oneshot";
         ExecStart = [ "${pkgs.python3}/bin/python3 ${client} --once" ];
