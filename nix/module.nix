@@ -54,6 +54,13 @@ in
     # (appConfig) so no desktop portal/agent authorization is required.
     services.geoclue2 = {
       enable = true;
+      # Our client is a system component (isSystem=true below), so it does
+      # NOT need the demo agent to authorize it. In fact the demo agent
+      # interferes — it only auto-approves known interactive apps and won't
+      # authorize a service-context request, which is why the checkin got
+      # "no location object after polling" while the interactive test worked.
+      # Disable it so the isSystem client talks to geoclue directly.
+      enableDemoAgent = false;
       appConfig."com.gooseys.device-tracker" = {
         isAllowed = true;
         isSystem = true;
