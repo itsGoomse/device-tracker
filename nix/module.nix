@@ -40,6 +40,10 @@ in
   };
 
   config = lib.mkIf config.services.device-tracker.enable {
+    # GeoClue2 provides location (WiFi/network positioning — no GPS chip
+    # needed on these laptops). The client reads it via gdbus.
+    services.geoclue2.enable = true;
+
     systemd.services.tracker-checkin = {
       description = "device-tracker periodic checkin";
       wantedBy = [ "timers.target" ];
