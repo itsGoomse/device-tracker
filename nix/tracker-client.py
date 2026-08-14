@@ -114,6 +114,21 @@ def boot_id():
     return _read("/proc/sys/kernel/random/boot_id")
 
 
+def ssid():
+    """Current WiFi SSID (best-effort). Used by the server to match the
+    device against a known SSID->location mapping (learned from the phone's
+    GPS). Returns None if not on WiFi or unknown."""
+    # iwgetid (iw) is the most reliable on NixOS.
+    out = _run(["sh", "-c", "iwgetid -r 2>/dev/null || iw dev 2>/dev/null | awk '/ssid/{print $2; exit}'"])
+    if out:
+        return out.strip()
+    # fallback: nmcli
+    out = _run(["sh", "-c", "nmcli -t -f active,ssid dev wifi 2>/dev/null | grep '^yes:' | cut -d: -f2"])
+    if out:
+        return out.strip()
+    return None
+
+
 def battery():
     """Framework 12 exposes a battery under /sys/class/power_supply/BAT?."""
     for base in ("/sys/class/power_supply/BAT0",
@@ -235,6 +250,7 @@ def collect(args):
         "uptime_s": uptime(),
         "battery": battery(),
         "loc": location(),
+        "ssid": ssid(),
         "ts": time.time(),
     }
 
