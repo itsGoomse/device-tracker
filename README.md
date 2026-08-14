@@ -35,15 +35,19 @@ Open `/etc/nixos/configuration.nix` and add:
     /home/inuk/device-tracker/nix/module.nix   # <-- adjust path to where you cloned
   ];
 
-  # Enable the tracker client with your token:
+  # Enable the tracker client with THIS DEVICE's token:
   services.device-tracker = {
     enable = true;
-    token = "8b722c…c605";   # your shared token (X-Track-Token)
+    token = "PASTE-THIS-DEVICES-TOKEN-HERE";   # one token per device
     # server defaults to https://track.gooseysserver.eu
     # intervalSec defaults to 300 (5 min)
   };
 }
 ```
+
+Each device has its **own** token (per-device tokens, one per machine).
+Ask your server admin for the token assigned to this device, or generate one
+and add it to the server's `TRACK_TOKENS` list.
 
 > `lib` is only needed if your existing config already references it — the
 > module pulls in its own `lib`. If you get "undefined variable lib", add
@@ -79,7 +83,7 @@ enter the token once, and both machines should appear with a map pin.
 |---|---|---|
 | `services.device-tracker.enable` | false | Enable the client |
 | `services.device-tracker.server` | `https://track.gooseysserver.eu` | Server URL |
-| `services.device-tracker.token` | "" | Shared auth token |
+| `services.device-tracker.token` | "" | This device's auth token (one per device) |
 | `services.device-tracker.intervalSec` | 300 | Checkin interval (sec) |
 
 ## What it reports
