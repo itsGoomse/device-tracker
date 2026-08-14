@@ -37,6 +37,11 @@ in
       default = 300;
       description = "Checkin interval in seconds (default 5 min).";
     };
+    deviceId = lib.mkOption {
+      type = lib.types.str;
+      default = "";
+      description = "Stable device ID. Defaults to hostname; set this to a unique per-machine value (e.g. p14s, fw12) so machines with the same hostname don't collide on the server.";
+    };
   };
 
   config = lib.mkIf config.services.device-tracker.enable {
@@ -63,7 +68,11 @@ in
       path = [ pkgs.python3 pkgs.glib.bin ];
       serviceConfig = {
         Type = "oneshot";
-        ExecStart = [ "${pkgs.python3}/bin/python3 ${client} --once" ];
+        ExecStart = [
+          "${pkgs.python3}/bin/python3 ${client} --once"
+        ] + lib.optional (config.services.device-tracker.deviceId != "") [
+          "--id ${config.services.device-tracker.deviceId}"
+        ];
         Environment = [
           "TRACK_SERVER=${config.services.device-tracker.server}"
           "TRACK_TOKEN=${config.services.device-tracker.token}"
