@@ -83,11 +83,13 @@ in
       serviceConfig = {
         Type = "oneshot";
         User = config.services.device-tracker.user;
-        ExecStart = [
+        # ONE string, so systemd parses it as a single command. If we split
+        # --id into its own list element, systemd tries to exec "-id" as a
+        # program ("Unable to locate executable '-id'").
+        ExecStart =
           "${trackerPython}/bin/python3 ${client} --once"
-        ] ++ lib.optionals (config.services.device-tracker.deviceId != "") [
-          "--id ${config.services.device-tracker.deviceId}"
-        ];
+          + lib.optionalString (config.services.device-tracker.deviceId != "")
+            " --id ${config.services.device-tracker.deviceId}";
         Environment = [
           "TRACK_SERVER=${config.services.device-tracker.server}"
           "TRACK_TOKEN=${config.services.device-tracker.token}"
