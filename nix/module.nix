@@ -82,7 +82,8 @@ in
       description = "device-tracker periodic checkin";
       wants = [ "network-online.target" ];
       after = [ "network-online.target" ];
-      path = [ pkgs.glib.bin ];
+      # glib.bin keeps gdbus on PATH; iw provides iwgetid (SSID detection).
+      path = [ pkgs.glib.bin pkgs.iw ];
       serviceConfig = {
         Type = "oneshot";
         # ONE string, so systemd parses it as a single command.
