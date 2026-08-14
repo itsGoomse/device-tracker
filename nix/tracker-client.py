@@ -156,7 +156,8 @@ def location():
         import dbus
         import dbus.mainloop.glib
         from gi.repository import GLib
-    except ImportError:
+    except ImportError as e:
+        print(f"[tracker] location: import error: {e}", file=sys.stderr)
         return None
 
     dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
@@ -178,8 +179,8 @@ def location():
         # DesktopId is a property; geoclue matches it against the whitelist.
         try:
             props.Set(IFACE_CLIENT, "DesktopId", DESKTOP_ID)
-        except dbus.DBusException:
-            pass
+        except dbus.DBusException as e:
+            print(f"[tracker] location: SetDesktopId error: {e}", file=sys.stderr)
 
         dbus.Interface(client, IFACE_CLIENT).Start()
 
@@ -191,10 +192,11 @@ def location():
                 if p and str(p) != "/":
                     loc_path = p
                     break
-            except dbus.DBusException:
-                pass
+            except dbus.DBusException as e:
+                print(f"[tracker] location: Get Location error: {e}", file=sys.stderr)
             time.sleep(1)
         if not loc_path:
+            print("[tracker] location: no location object after polling", file=sys.stderr)
             return None
 
         loc = bus.get_object(BUS, loc_path)
@@ -203,9 +205,11 @@ def location():
         lat = float(allp.get("Latitude", 0))
         lon = float(allp.get("Longitude", 0))
         if lat == 0.0 and lon == 0.0:
+            print("[tracker] location: lat/lon are 0.0", file=sys.stderr)
             return None
         return {"lat": lat, "lon": lon, "source": "geoclue"}
-    except Exception:
+    except Exception as e:
+        print(f"[tracker] location: unexpected error: {e}", file=sys.stderr)
         return None
 
 
