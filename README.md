@@ -16,6 +16,8 @@ the checkin endpoint is public so machines report in from anywhere.
 - **SSID auto-matching** — when you set a location from your phone, optionally enter the WiFi name (SSID) you're on. The laptop then auto-matches its own SSID to that location, so it knows where it is whenever it joins that network — no manual pinning needed each time.
 - **Known SSIDs list** — the dashboard's "Known SSIDs" button shows all SSID->location mappings and lets you delete stale ones.
 - **PIN gate** — the public mobile endpoints require a PIN (set via `TRACK_PIN` env on the server) in addition to the token, so a leaked token alone isn't enough to move a device.
+- **Set home location** — the dashboard's "Set home" button uses your browser's geolocation to set a precise home pin (instead of the default Holbæk coords), so the home-pin is accurate to where you actually live.
+- **Auto-cleanup** — devices that haven't checked in for 7 days (configurable via `STALE_DEVICE_SECS`) are removed automatically, so retired machines drop off the dashboard.
 - **Frequent-areas report** — the dashboard's "Frequent areas" button clusters location history into the places you spend time (home, work, etc.).
 
 ## Endpoints
@@ -26,6 +28,8 @@ the checkin endpoint is public so machines report in from anywhere.
 - `POST /api/set-location` — phone GPS sets a device's location + optional SSID mapping (public, token).
 - `GET  /api/known-ssids` — list SSID->location mappings (LAN-only, token).
 - `DELETE /api/known-ssids/<ssid>` — delete a mapping (LAN-only, token).
+- `POST /api/set-home` — set the home location (LAN-only, token).
+- `GET  /api/home` — get the current home location (LAN-only, token).
 - `GET  /api/frequent-areas` — clustered location history (LAN-only, token).
 - `GET  /mobile` — phone GPS page (public, token + PIN).
 - `GET  /` — dashboard (LAN-only).
