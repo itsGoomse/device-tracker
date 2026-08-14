@@ -138,75 +138,71 @@ def battery():
 def location():
     """Report real location from GeoClue2 (WiFi/network positioning — no GPS
     chip on FW12/P14s). Returns None if unavailable; the SERVER then applies
-    its own IP-geo / home-pinning. We deliberately do NOT do client-side IP
-    fallback here, because IP-geo often resolves to a far-away ISP tower
-    (e.g. Hornslet for a Holbæk device) and would override the server's
-    home-pin.
+    its own IP-geo / home-pinning.
 
-    GeoClue2 DBus flow (object paths are dynamic, not fixed):
-      Manager.GetClient -> client path
-      client.Start / client.GetLocation -> location path
-      location.GetAll(lat, lon)
+    GeoClue2's Client object is tied to the DBus connection that created it
+    and dies when that connection closes — so we must use ONE persistent
+    connection for the whole Manager -> Client -> Start -> GetLocation flow.
+    (The old gdbus one-shot calls kept losing the client object, which is why
+    location always came back None.)
+
+    Requires python3Packages.dbus-python (added to the checkin service PATH).
 
     Returns dict with lat/lon (+ source) or None.
     """
-    import re
-    GB = "gdbus call --system --dest org.freedesktop.GeoClue2"
     try:
-        # 1) Get a client object (path is dynamic).
-        mgr = _run(["sh", "-c",
-            f'{GB} --object-path /org/freedesktop/GeoClue2/Manager '
-            '--method org.freedesktop.GeoClue2.Manager.GetClient 2>/dev/null'])
-        if not mgr:
-            return None
-        m = re.search(r"(/org/freedesktop/GeoClue2/Client/\d+)", mgr)
-        if not m:
-            return None
-        client_path = m.group(1)
+        import dbus
+    except ImportError:
+        return None
+
+    try:
+        bus = dbus.SystemBus()
+        mgr = bus.get_object(
+            "org.freedesktop.GeoClue2",
+            "/org/freedesktop/GeoClue2/Manager",
+            follow_name_owner_changes=True,
+        )
+        mgr_iface = dbus.Interface(mgr, "org.freedesktop.GeoClue2.Manager")
+        client_path = mgr_iface.GetClient()
+
+        client = bus.get_object("org.freedesktop.GeoClue2", client_path,
+                                follow_name_owner_changes=True)
+        client_iface = dbus.Interface(client, "org.freedesktop.GeoClue2.Client")
 
         # Declare our desktop ID so GeoClue matches the whitelist entry
         # (services.geoclue2.appConfig."com.gooseys.device-tracker").
-        # Without this, GeoClue can't identify a bare python process and
-        # refuses to authorize a location.
-        _run(["sh", "-c",
-            f'{GB} --object-path {client_path} '
-            '--method org.freedesktop.GeoClue2.Client.SetDesktopId '
-            'com.gooseys.device-tracker 2>/dev/null'])
+        try:
+            client_iface.SetDesktopId("com.gooseys.device-tracker")
+        except dbus.DBusException:
+            pass
 
-        # 2) Start the client (async location determination begins).
-        _run(["sh", "-c",
-            f'{GB} --object-path {client_path} '
-            '--method org.freedesktop.GeoClue2.Client.Start 2>/dev/null'])
+        client_iface.Start()
 
-        # 3) Poll GetLocation a few times — a fix may take a second or two.
+        # Poll for a location fix (async; may take a couple seconds).
         loc_path = None
         for _ in range(5):
-            loc = _run(["sh", "-c",
-                f'{GB} --object-path {client_path} '
-                '--method org.freedesktop.GeoClue2.Client.GetLocation 2>/dev/null'])
-            lm = re.search(r"(/org/freedesktop/GeoClue2/Location/\d+)", loc or "")
-            if lm:
-                loc_path = lm.group(1)
+            try:
+                loc_path = client_iface.GetLocation()
+            except dbus.DBusException:
+                loc_path = None
+            if loc_path:
                 break
             time.sleep(1)
         if not loc_path:
             return None
 
-        # 4) Read lat/lon from the location object.
-        props = _run(["sh", "-c",
-            f'{GB} --object-path {loc_path} '
-            '--method org.freedesktop.DBus.Properties.GetAll '
-            'org.freedesktop.GeoClue2.Location 2>/dev/null'])
-        if not props:
+        loc = bus.get_object("org.freedesktop.GeoClue2", loc_path,
+                             follow_name_owner_changes=True)
+        props = dbus.Interface(loc, "org.freedesktop.DBus.Properties")
+        all_props = props.GetAll("org.freedesktop.GeoClue2.Location")
+
+        lat = float(all_props.get("Latitude"))
+        lon = float(all_props.get("Longitude"))
+        if lat == 0.0 and lon == 0.0:
             return None
-        lat = re.search(r"'latitude':\s*<\(?\s*(-?\d+\.?\d*)", props)
-        lon = re.search(r"'longitude':\s*<\(?\s*(-?\d+\.?\d*)", props)
-        if lat and lon:
-            return {"lat": float(lat.group(1)), "lon": float(lon.group(1)),
-                    "source": "geoclue"}
+        return {"lat": lat, "lon": lon, "source": "geoclue"}
     except Exception:
-        pass
-    return None
+        return None
 
 
 def collect(args):

@@ -18,6 +18,9 @@
 let
   # Bake the client script into the derivation so the module is standalone.
   client = pkgs.writeScript "tracker-client.py" (builtins.readFile ./tracker-client.py);
+  # Python interpreter with dbus-python so the client can hold a persistent
+  # D-Bus connection to GeoClue2 (required for location).
+  trackerPython = pkgs.python3.withPackages (p: [ p.dbus-python ]);
 in
 {
   options.services.device-tracker = {
@@ -73,14 +76,15 @@ in
       wantedBy = [ "timers.target" ];
       after = [ "network-online.target" ];
       wants = [ "network-online.target" ];
-      # python3 runs the script; glib.bin provides gdbus (needed to talk to
-      # GeoClue2 for location).
-      path = [ pkgs.python3 pkgs.glib.bin ];
+      # trackerPython includes dbus-python so the client can hold a
+      # persistent D-Bus connection to GeoClue2 (the Client object dies if
+      # we use separate gdbus calls). glib.bin keeps gdbus on PATH.
+      path = [ pkgs.glib.bin ];
       serviceConfig = {
         Type = "oneshot";
         User = config.services.device-tracker.user;
         ExecStart = [
-          "${pkgs.python3}/bin/python3 ${client} --once"
+          "${trackerPython}/bin/python3 ${client} --once"
         ] ++ lib.optionals (config.services.device-tracker.deviceId != "") [
           "--id ${config.services.device-tracker.deviceId}"
         ];
